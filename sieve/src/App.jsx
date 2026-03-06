@@ -635,7 +635,7 @@ Rohit Bansal,Product Manager,31,REJECT,"Basic PM concepts"`;
 
 // ── API ────────────────────────────────────────────────────────────────────────
 async function callClaude(prompt, sys="", maxTokens=4000) {
-  const r = await fetch("/api/chat", {
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST", headers: {"Content-Type":"application/json"},
     body: JSON.stringify({
       model: ANTHROPIC_MODEL, max_tokens: maxTokens,
@@ -674,13 +674,15 @@ Questions must be highly specific to this role — real metrics, frameworks, dom
 };
 
 const scoreSubmission = async (questions, answers, meta) => {
-  // Compact payload — only what scorer needs
   const qa = questions.map((q,i) => `Q(${q.type}): ${q.question.slice(0,120)} | Ideal: ${(q.ideal_answer||"").slice(0,80)} | Answer: ${(answers[i]||"(blank)").slice(0,200)}`).join("\n");
-  const text = await callClaude(
-    `Score this ${meta.role} assessment. Q&A:\n${qa}\n\nReturn JSON: {total_score(0-100), breakdown:[{dimension,score}] for "Domain Knowledge","Problem Solving","Communication","Role Fit", strengths:["str1","str2","str3"], recommendation:"ADVANCE"|"HOLD"|"REJECT", recommendation_reason:"1 sentence"}. JSON only.`,
-    "", 800
-  );
-  return JSON.parse(text);
+  // Call proxy but with a flag to stream response directly — avoids timeout
+  const r = await fetch("/api/score", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ role: meta.role, qa })
+  });
+  const d = await r.json();
+  if (d.error) throw new Error(d.error);
+  return d;
 };
 
 // ── PARTICLE INTRO ────────────────────────────────────────────────────────────
